@@ -1,0 +1,520 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Oatmeal theme base styles with dark mode support */
+@layer base {
+  html {
+    @apply antialiased;
+  }
+
+  body {
+    @apply bg-cream-100 text-surface-800 font-sans transition-colors duration-300;
+  }
+
+  /* Dark mode - apply to html element */
+  html.dark {
+    background-color: #1a1917;
+  }
+
+  html.dark body {
+    background-color: #1a1917;
+    color: #f3e5d0;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-serif tracking-tight;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 0.5rem;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-cream-200 rounded;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-olive-400 rounded;
+  }
+
+  html.dark ::-webkit-scrollbar-track {
+    background-color: #262422;
+  }
+
+  html.dark ::-webkit-scrollbar-thumb {
+    background-color: #556040;
+  }
+}
+
+@layer components {
+  /* Primary button - olive accent */
+  .btn-primary {
+    @apply px-6 py-3 bg-olive-600 text-white font-medium rounded-xl
+           hover:bg-olive-700 active:bg-olive-800
+           transition-all duration-200 ease-out
+           shadow-sm hover:shadow-medium
+           focus:outline-none focus:ring-2 focus:ring-olive-400 focus:ring-offset-2;
+  }
+
+  /* Secondary button */
+  .btn-secondary {
+    @apply px-6 py-3 bg-cream-200 text-surface-700 font-medium rounded-xl
+           border border-cream-400
+           hover:bg-cream-300 active:bg-cream-400
+           transition-all duration-200 ease-out
+           focus:outline-none focus:ring-2 focus:ring-olive-300 focus:ring-offset-2;
+  }
+
+  /* Card component */
+  .card {
+    @apply bg-white rounded-2xl shadow-soft p-6 border border-cream-200;
+  }
+
+  /* Input field */
+  .input {
+    @apply w-full px-4 py-3 bg-cream-50 border border-cream-300 rounded-xl
+           text-surface-800 placeholder:text-surface-400
+           focus:outline-none focus:ring-2 focus:ring-olive-400 focus:border-olive-400
+           transition-all duration-200;
+  }
+
+  /* Select dropdown */
+  .select {
+    @apply w-full px-4 py-3 bg-cream-50 border border-cream-300 rounded-xl
+           text-surface-800 appearance-none cursor-pointer
+           focus:outline-none focus:ring-2 focus:ring-olive-400 focus:border-olive-400
+           transition-all duration-200 bg-no-repeat pr-10;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%236d7a4e'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+    background-size: 1.5rem;
+    background-position: right 0.75rem center;
+  }
+
+  /* Checkbox */
+  .checkbox {
+    @apply w-5 h-5 rounded border-2 border-cream-400 bg-cream-50
+           checked:bg-olive-600 checked:border-olive-600
+           focus:ring-2 focus:ring-olive-300 focus:ring-offset-2
+           transition-all duration-200 cursor-pointer;
+  }
+
+  /* Badge */
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+
+  .badge-success {
+    @apply bg-olive-100 text-olive-800;
+  }
+
+  .badge-warning {
+    @apply bg-amber-100 text-amber-800;
+  }
+
+  .badge-error {
+    @apply bg-red-100 text-red-800;
+  }
+
+  .badge-info {
+    @apply bg-cream-200 text-surface-700;
+  }
+
+  /* Progress bar */
+  .progress {
+    @apply w-full h-2 bg-cream-200 rounded-full overflow-hidden;
+  }
+
+  .progress-bar {
+    @apply h-full bg-olive-500 rounded-full transition-all duration-500 ease-out;
+  }
+
+  /* Upload zone */
+  .upload-zone {
+    @apply border-2 border-dashed border-cream-400 rounded-2xl p-12
+           bg-cream-50 hover:bg-cream-100 hover:border-olive-400
+           transition-all duration-300 ease-out cursor-pointer
+           flex flex-col items-center justify-center gap-4;
+  }
+
+  .upload-zone.active {
+    @apply border-olive-500 bg-olive-50;
+  }
+}
+
+/* ==========================================
+   DARK MODE OVERRIDES
+   ========================================== */
+
+/* Main backgrounds */
+html.dark .min-h-screen {
+  background-color: #1a1917 !important;
+}
+
+/* Header */
+html.dark header {
+  background-color: #201e1c !important;
+  border-color: #2d2b29 !important;
+}
+
+/* Footer */
+html.dark footer {
+  border-color: #2d2b29 !important;
+}
+
+/* Cards */
+html.dark .card {
+  background-color: #262422;
+  border-color: #2d2b29;
+  box-shadow: 0 2px 15px -3px rgba(0, 0, 0, 0.4);
+}
+
+/* Buttons */
+html.dark .btn-secondary {
+  background-color: #2d2b29;
+  color: #f3e5d0;
+  border-color: #3d3a37;
+}
+
+html.dark .btn-secondary:hover {
+  background-color: #3d3a37;
+}
+
+/* Form inputs */
+html.dark .input,
+html.dark .select {
+  background-color: #201e1c;
+  border-color: #2d2b29;
+  color: #f3e5d0;
+}
+
+html.dark .input::placeholder {
+  color: #7a746c;
+}
+
+html.dark .checkbox {
+  background-color: #201e1c;
+  border-color: #3d3a37;
+}
+
+/* Upload zone */
+html.dark .upload-zone {
+  background-color: #201e1c;
+  border-color: #3d3a37;
+}
+
+html.dark .upload-zone:hover {
+  background-color: #262422;
+  border-color: #6d7a4e;
+}
+
+/* Badges */
+html.dark .badge-info {
+  background-color: #2d2b29;
+  color: #f3e5d0;
+}
+
+html.dark .badge-success {
+  background-color: rgba(60, 66, 48, 0.6);
+  color: #c4cbad;
+}
+
+html.dark .badge-warning {
+  background-color: rgba(120, 80, 30, 0.6);
+  color: #fcd34d;
+}
+
+html.dark .badge-error {
+  background-color: rgba(120, 40, 40, 0.6);
+  color: #fca5a5;
+}
+
+/* Progress bar */
+html.dark .progress {
+  background-color: #2d2b29;
+}
+
+/* Text colors for dark mode */
+html.dark .text-surface-900 {
+  color: #fefdfb !important;
+}
+
+html.dark .text-surface-800 {
+  color: #f3e5d0 !important;
+}
+
+html.dark .text-surface-700 {
+  color: #e8d4b5 !important;
+}
+
+html.dark .text-surface-600 {
+  color: #c9c5c0 !important;
+}
+
+html.dark .text-surface-500 {
+  color: #a9a49d !important;
+}
+
+html.dark .text-surface-400 {
+  color: #918b83 !important;
+}
+
+/* Background colors for items in dark mode */
+html.dark .bg-cream-50 {
+  background-color: #201e1c !important;
+}
+
+html.dark .bg-cream-100 {
+  background-color: #1a1917 !important;
+}
+
+html.dark .bg-cream-200 {
+  background-color: #262422 !important;
+}
+
+html.dark .bg-white {
+  background-color: #262422 !important;
+}
+
+/* Hover states */
+html.dark .hover\:bg-cream-100:hover {
+  background-color: #262422 !important;
+}
+
+html.dark .hover\:bg-cream-200:hover {
+  background-color: #2d2b29 !important;
+}
+
+html.dark .hover\:bg-cream-300:hover {
+  background-color: #3d3a37 !important;
+}
+
+/* Borders */
+html.dark .border-cream-200 {
+  border-color: #2d2b29 !important;
+}
+
+html.dark .border-cream-300 {
+  border-color: #3d3a37 !important;
+}
+
+html.dark .border-cream-400 {
+  border-color: #3d3a37 !important;
+}
+
+/* Gradient backgrounds for special cards */
+html.dark .bg-gradient-to-br {
+  background-image: linear-gradient(
+    to bottom right,
+    #2d2b29,
+    #262422
+  ) !important;
+}
+
+/* Nav items */
+html.dark .bg-olive-100 {
+  background-color: rgba(85, 96, 64, 0.4) !important;
+}
+
+html.dark .text-olive-800 {
+  color: #c4cbad !important;
+}
+
+/* Olive-50 background (recommended settings section) */
+html.dark .bg-olive-50 {
+  background-color: rgba(60, 66, 48, 0.3) !important;
+}
+
+html.dark .border-olive-200 {
+  border-color: rgba(85, 96, 64, 0.5) !important;
+}
+
+html.dark .text-olive-600 {
+  color: #a7b185 !important;
+}
+
+/* Output format buttons - UNSELECTED state in dark mode */
+html.dark label span.border-cream-300,
+html.dark span.inline-block.border-cream-300 {
+  background-color: #0f0e0d !important;
+  border-color: #2d2b29 !important;
+  color: #635e58 !important;
+}
+
+/* Output format buttons - SELECTED state in dark mode (peer-checked) */
+html.dark .peer:checked + span,
+html.dark label:has(input:checked) span {
+  background-color: #6d7a4e !important;
+  border-color: #8a9766 !important;
+  color: #ffffff !important;
+}
+
+/* Checkboxes in dark mode - darker background */
+html.dark input[type="checkbox"].checkbox {
+  background-color: #0f0e0d !important;
+  border-color: #3d3a37 !important;
+}
+
+html.dark input[type="checkbox"].checkbox:checked {
+  background-color: #6d7a4e !important;
+  border-color: #8a9766 !important;
+}
+
+/* Range slider */
+html.dark input[type="range"] {
+  background-color: #2d2b29;
+}
+
+/* Dividers */
+html.dark .border-cream-300 {
+  border-color: #3d3a37 !important;
+}
+
+/* Animations */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.animate-shimmer {
+  background: linear-gradient(90deg, #f9f1e4 0%, #fdf9f3 50%, #f9f1e4 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+html.dark .animate-shimmer {
+  background: linear-gradient(90deg, #262422 0%, #2d2b29 50%, #262422 100%);
+  background-size: 200% 100%;
+}
+
+/* Float animation for empty states */
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* ==========================================
+   MOBILE RESPONSIVE STYLES
+   ========================================== */
+
+/* Mobile navigation - stack vertically */
+@media (max-width: 768px) {
+  /* Stack header nav */
+  header nav {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  header nav a {
+    font-size: 0.875rem;
+    padding: 0.5rem 0.75rem;
+  }
+
+  /* Upload zone - smaller padding */
+  .upload-zone {
+    padding: 2rem 1rem;
+  }
+
+  .upload-zone > div:first-child {
+    width: 3rem;
+    height: 3rem;
+  }
+
+  .upload-zone svg {
+    width: 1.5rem;
+    height: 1.5rem;
+  }
+
+  /* Cards - less padding */
+  .card {
+    padding: 1rem;
+  }
+
+  /* Stack grid items */
+  .grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Full width buttons */
+  .btn-primary,
+  .btn-secondary {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* Smaller text */
+  h2 {
+    font-size: 1.5rem;
+  }
+
+  h3 {
+    font-size: 1.125rem;
+  }
+
+  /* Hide sidebar on mobile */
+  .lg\\:col-span-2 {
+    grid-column: span 1;
+  }
+}
+
+/* Tablet adjustments */
+@media (min-width: 769px) and (max-width: 1024px) {
+  /* Two column grid for queue items */
+  .grid-cols-1 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Touch-friendly tap targets */
+@media (pointer: coarse) {
+  button,
+  a,
+  label {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  input[type="checkbox"] {
+    width: 1.5rem;
+    height: 1.5rem;
+  }
+
+  /* Larger touch targets for file items */
+  .card > div {
+    padding: 0.75rem 0;
+  }
+}
+
+/* Fade in animation */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out;
+}

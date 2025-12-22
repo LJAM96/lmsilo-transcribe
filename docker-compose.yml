@@ -1,0 +1,199 @@
+version: "3.8"
+
+# STT Server Docker Compose
+# All user data (uploads, outputs, models) is persisted in named volumes
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: stt-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: stt
+      POSTGRES_PASSWORD: stt_password
+      POSTGRES_DB: stt
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stt"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for Celery broker and caching
+  redis:
+    image: redis:7-alpine
+    container_name: stt-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # FastAPI Backend
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: stt-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://stt:stt_password@postgres:5432/stt
+      - REDIS_URL=redis://redis:6379/0
+      - UPLOAD_DIR=/app/uploads
+      - OUTPUT_DIR=/app/outputs
+      - MODEL_DIR=/app/models
+      - HF_HOME=/app/huggingface  # HuggingFace cache directory
+      - HF_TOKEN=${HF_TOKEN:-}
+      - DEVICE=${DEVICE:-auto}
+      - COMPUTE_TYPE=${COMPUTE_TYPE:-auto}
+    volumes:
+      - uploads:/app/uploads
+      - outputs:/app/outputs
+      - models:/app/models
+      - huggingface_cache:/app/huggingface  # Persist HF model downloads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    # GPU support - uncomment for NVIDIA GPU
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+  # Celery Worker for STT tasks
+  worker-stt:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: stt-worker-stt
+    restart: unless-stopped
+    command: celery -A workers.celery_app worker -Q stt -c 1 --loglevel=info
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://stt:stt_password@postgres:5432/stt
+      - REDIS_URL=redis://redis:6379/0
+      - UPLOAD_DIR=/app/uploads
+      - OUTPUT_DIR=/app/outputs
+      - MODEL_DIR=/app/models
+      - HF_HOME=/app/huggingface
+      - HF_TOKEN=${HF_TOKEN:-}
+      - DEVICE=${DEVICE:-cuda}
+      - COMPUTE_TYPE=${COMPUTE_TYPE:-float16}
+    volumes:
+      - uploads:/app/uploads
+      - outputs:/app/outputs
+      - models:/app/models
+      - huggingface_cache:/app/huggingface
+    depends_on:
+      - backend
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  # Celery Worker for Diarization tasks
+  worker-diarization:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: stt-worker-diarization
+    restart: unless-stopped
+    command: celery -A workers.celery_app worker -Q diarization -c 1 --loglevel=info
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://stt:stt_password@postgres:5432/stt
+      - REDIS_URL=redis://redis:6379/0
+      - UPLOAD_DIR=/app/uploads
+      - OUTPUT_DIR=/app/outputs
+      - MODEL_DIR=/app/models
+      - HF_HOME=/app/huggingface
+      - HF_TOKEN=${HF_TOKEN:-}
+      - DEVICE=${DEVICE:-cuda}
+    volumes:
+      - uploads:/app/uploads
+      - outputs:/app/outputs
+      - models:/app/models
+      - huggingface_cache:/app/huggingface
+    depends_on:
+      - backend
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  # Celery Worker for TTS tasks
+  worker-tts:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: stt-worker-tts
+    restart: unless-stopped
+    command: celery -A workers.celery_app worker -Q tts,sync -c 1 --loglevel=info
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://stt:stt_password@postgres:5432/stt
+      - REDIS_URL=redis://redis:6379/0
+      - UPLOAD_DIR=/app/uploads
+      - OUTPUT_DIR=/app/outputs
+      - MODEL_DIR=/app/models
+      - HF_HOME=/app/huggingface
+      - HF_TOKEN=${HF_TOKEN:-}
+      - DEVICE=${DEVICE:-cuda}
+    volumes:
+      - uploads:/app/uploads
+      - outputs:/app/outputs
+      - models:/app/models
+      - huggingface_cache:/app/huggingface
+    depends_on:
+      - backend
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  # React Frontend
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: stt-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+# Named volumes for data persistence
+# All models, uploads, and outputs are stored here and persist across container restarts
+volumes:
+  postgres_data:
+    name: stt_postgres_data
+  redis_data:
+    name: stt_redis_data
+  uploads:
+    name: stt_uploads
+  outputs:
+    name: stt_outputs
+  models:
+    name: stt_models           # User-uploaded and downloaded models
+  huggingface_cache:
+    name: stt_huggingface      # HuggingFace model cache (Whisper, pyannote, etc.)

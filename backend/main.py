@@ -57,6 +57,17 @@ app.include_router(batches.router, prefix="/api/batches", tags=["Batches"])
 app.include_router(transcripts.router, prefix="/api/transcripts", tags=["Transcripts"])
 app.include_router(subtitles.router, prefix="/api/jobs", tags=["Subtitles"])
 
+# Include audit log routes
+import sys
+sys.path.insert(0, "/app")  # Add parent for shared imports
+try:
+    from shared.api.audit import create_audit_router
+    from services.database import get_session
+    audit_router = create_audit_router(get_session)
+    app.include_router(audit_router, prefix="/api/audit", tags=["Audit"])
+except ImportError:
+    pass  # Shared module not available
+
 # Mount static files for uploaded content
 app.mount("/uploads", StaticFiles(directory=settings.upload_dir), name="uploads")
 app.mount("/outputs", StaticFiles(directory=settings.output_dir), name="outputs")

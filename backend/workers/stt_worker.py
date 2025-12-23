@@ -1,20 +1,95 @@
-"""Speech-to-Text worker with pluggable engine support."""
+"""Speech-to-Text worker with pluggable engine support - OPTIMIZED VERSION."""
 
 import asyncio
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, List, Optional
+
 from sqlalchemy import select
 
 from .celery_app import celery_app
 from config import settings
 from schemas.model import ModelEngine
 
+logger = logging.getLogger(__name__)
+
+# ============= GLOBAL MODEL CACHE =============
+# Models are loaded once per worker process and reused across jobs
+_model_cache: Dict[str, Any] = {}
+
+
+def get_cached_faster_whisper(model_id: str, device: str, compute_type: str):
+    """Get or create cached faster-whisper model."""
+    cache_key = f"faster_whisper:{model_id}:{device}:{compute_type}"
+    
+    if cache_key not in _model_cache:
+        from faster_whisper import WhisperModel
+        
+        logger.info(f"Loading faster-whisper model: {model_id} (device={device}, compute={compute_type})")
+        _model_cache[cache_key] = WhisperModel(
+            model_id,
+            device=device,
+            compute_type=compute_type,
+            num_workers=4,  # Parallel decoding workers
+        )
+        logger.info(f"Model {model_id} loaded and cached")
+    
+    return _model_cache[cache_key]
+
+
+def get_cached_whisperx(model_id: str, device: str):
+    """Get or create cached whisperx model."""
+    cache_key = f"whisperx:{model_id}:{device}"
+    
+    if cache_key not in _model_cache:
+        import whisperx
+        
+        logger.info(f"Loading WhisperX model: {model_id} (device={device})")
+        _model_cache[cache_key] = whisperx.load_model(model_id, device=device)
+        logger.info(f"WhisperX model {model_id} loaded and cached")
+    
+    return _model_cache[cache_key]
+
+
+def get_cached_openai_whisper(model_id: str):
+    """Get or create cached OpenAI whisper model."""
+    cache_key = f"openai_whisper:{model_id}"
+    
+    if cache_key not in _model_cache:
+        import whisper
+        
+        logger.info(f"Loading OpenAI Whisper model: {model_id}")
+        _model_cache[cache_key] = whisper.load_model(model_id)
+        logger.info(f"OpenAI Whisper model {model_id} loaded and cached")
+    
+    return _model_cache[cache_key]
+
+
+def get_cached_hf_pipeline(model_id: str):
+    """Get or create cached HuggingFace pipeline."""
+    cache_key = f"hf_whisper:{model_id}"
+    
+    if cache_key not in _model_cache:
+        from transformers import pipeline
+        
+        logger.info(f"Loading HuggingFace pipeline: {model_id}")
+        _model_cache[cache_key] = pipeline(
+            "automatic-speech-recognition",
+            model=model_id,
+            return_timestamps="word",
+        )
+        logger.info(f"HuggingFace pipeline {model_id} loaded and cached")
+    
+    return _model_cache[cache_key]
+
 
 @celery_app.task(bind=True, name="workers.stt_worker.transcribe_audio")
 def transcribe_audio(self, job_id: str, prev_result: Any = None):
     """
     Transcribe audio using the configured STT engine.
+    
+    OPTIMIZED: Models are cached per worker process for faster subsequent jobs.
     
     Supports multiple engines:
     - faster-whisper (default, fastest)
@@ -67,7 +142,7 @@ def transcribe_audio(self, job_id: str, prev_result: Any = None):
             # Extract audio if video
             audio_path = await extract_audio_if_needed(job.original_path)
             
-            # Run transcription based on engine
+            # Run transcription based on engine (with cached models)
             engine = model.engine
             
             if engine == ModelEngine.FASTER_WHISPER:
@@ -116,7 +191,7 @@ def transcribe_audio(self, job_id: str, prev_result: Any = None):
             await session.commit()
             await session.refresh(transcript)
             
-            # Save segments
+            # Save segments in batch (reduced commits)
             for i, seg in enumerate(segments):
                 segment = TranscriptSegment(
                     transcript_id=transcript.id,
@@ -128,6 +203,9 @@ def transcribe_audio(self, job_id: str, prev_result: Any = None):
                     words=seg.get("words"),
                 )
                 session.add(segment)
+            
+            # Single commit for all segments
+            await session.commit()
             
             # Update job
             job.detected_language = info.get("language")
@@ -161,24 +239,24 @@ async def transcribe_faster_whisper(
     language: Optional[str],
     compute_type: str,
     device: str,
-    task: str = "transcribe",  # "transcribe" or "translate" (to English)
+    task: str = "transcribe",
     progress_callback=None,
 ) -> tuple[List[Dict], Dict]:
-    """Transcribe using faster-whisper."""
-    from faster_whisper import WhisperModel
-    
-    model = WhisperModel(
-        model_id,
-        device=device,
-        compute_type=compute_type,
-    )
+    """Transcribe using faster-whisper with cached model."""
+    # Use cached model
+    model = get_cached_faster_whisper(model_id, device, compute_type)
     
     segments_iter, info = model.transcribe(
         audio_path,
         language=language,
-        task=task,  # "transcribe" or "translate"
+        task=task,
         word_timestamps=True,
-        vad_filter=True,
+        vad_filter=True,  # Voice activity detection for efficiency
+        vad_parameters=dict(
+            min_silence_duration_ms=500,  # Skip long silences
+        ),
+        beam_size=5,
+        best_of=5,
     )
     
     segments = []
@@ -194,7 +272,6 @@ async def transcribe_faster_whisper(
             ],
         })
         if progress_callback:
-            # Estimate progress based on segment timing
             progress = min(seg.end / (info.duration or 1) * 100, 100)
             progress_callback(progress)
     
@@ -212,11 +289,11 @@ async def transcribe_whisperx(
     device: str,
     progress_callback=None,
 ) -> tuple[List[Dict], Dict]:
-    """Transcribe using WhisperX with word alignment."""
+    """Transcribe using WhisperX with word alignment and cached model."""
     import whisperx
     
-    # Load model
-    model = whisperx.load_model(model_id, device=device)
+    # Use cached model
+    model = get_cached_whisperx(model_id, device)
     
     # Load audio
     audio = whisperx.load_audio(audio_path)
@@ -227,7 +304,7 @@ async def transcribe_whisperx(
     if progress_callback:
         progress_callback(50)
     
-    # Align
+    # Align (alignment model not cached as it varies by language)
     model_a, metadata = whisperx.load_align_model(
         language_code=result["language"],
         device=device,
@@ -252,7 +329,7 @@ async def transcribe_whisperx(
             "words": seg.get("words", []),
         })
     
-    duration = len(audio) / 16000  # Assuming 16kHz sample rate
+    duration = len(audio) / 16000
     
     return segments, {
         "language": result.get("language", language),
@@ -265,10 +342,9 @@ async def transcribe_openai_whisper(
     model_id: str,
     language: Optional[str],
 ) -> tuple[List[Dict], Dict]:
-    """Transcribe using original OpenAI Whisper."""
-    import whisper
-    
-    model = whisper.load_model(model_id)
+    """Transcribe using original OpenAI Whisper with cached model."""
+    # Use cached model
+    model = get_cached_openai_whisper(model_id)
     result = model.transcribe(audio_path, language=language, word_timestamps=True)
     
     segments = []
@@ -291,20 +367,15 @@ async def transcribe_hf_whisper(
     model_id: str,
     language: Optional[str],
 ) -> tuple[List[Dict], Dict]:
-    """Transcribe using HuggingFace Transformers Whisper."""
-    from transformers import pipeline
+    """Transcribe using HuggingFace Transformers Whisper with cached pipeline."""
     import librosa
     
-    pipe = pipeline(
-        "automatic-speech-recognition",
-        model=model_id,
-        return_timestamps="word",
-    )
+    # Use cached pipeline
+    pipe = get_cached_hf_pipeline(model_id)
     
     audio, sr = librosa.load(audio_path, sr=16000)
     result = pipe(audio)
     
-    # Convert to segment format
     segments = [{
         "start": 0,
         "end": len(audio) / sr,
@@ -329,7 +400,6 @@ async def extract_audio_if_needed(file_path: str) -> str:
     if path.suffix.lower() not in video_extensions:
         return file_path
     
-    # Extract audio using ffmpeg
     audio_path = path.with_suffix(".wav")
     
     if not audio_path.exists():
@@ -350,13 +420,16 @@ async def update_progress(session, job, progress: float, message: str = ""):
         job.current_stage = message
     await session.commit()
     
-    from api.queue import manager
-    await manager.broadcast({
-        "type": "progress",
-        "job_id": job.id,
-        "progress": progress,
-        "message": message,
-    })
+    try:
+        from api.queue import manager
+        await manager.broadcast({
+            "type": "progress",
+            "job_id": job.id,
+            "progress": progress,
+            "message": message,
+        })
+    except Exception:
+        pass  # WebSocket notification is optional
 
 
 def update_progress_sync(session, job, progress: float):
@@ -370,24 +443,20 @@ async def generate_output_files(segments: List[Dict], output_dir: Path, formats:
     """Generate transcript in requested formats."""
     import json
     
-    # JSON
     if "json" in formats:
         with open(output_dir / "transcript.json", "w") as f:
             json.dump({"segments": segments}, f, indent=2)
     
-    # SRT
     if "srt" in formats:
         srt = generate_srt(segments)
         with open(output_dir / "subtitles.srt", "w") as f:
             f.write(srt)
     
-    # VTT
     if "vtt" in formats:
         vtt = generate_vtt(segments)
         with open(output_dir / "subtitles.vtt", "w") as f:
             f.write(vtt)
     
-    # TXT
     if "txt" in formats:
         txt = "\n".join(seg["text"] for seg in segments)
         with open(output_dir / "transcript.txt", "w") as f:

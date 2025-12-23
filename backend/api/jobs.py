@@ -103,7 +103,11 @@ async def create_job(
     
     # Save uploaded file and compute hash
     content = await file.read()
-    file_hash = hashlib.sha256(content).hexdigest()
+    try:
+        import xxhash
+        file_hash = xxhash.xxh3_64(content).hexdigest()
+    except ImportError:
+        file_hash = hashlib.sha256(content).hexdigest()
     async with aiofiles.open(upload_path, "wb") as f:
         await f.write(content)
     
@@ -340,7 +344,7 @@ async def get_transcript(
     segments = result.scalars().all()
     
     # Return based on format
-        if format == OutputFormat.JSON:
+    if format == OutputFormat.JSON:
             return TranscriptResponse(
                 id=transcript.id,
                 job_id=job_id,

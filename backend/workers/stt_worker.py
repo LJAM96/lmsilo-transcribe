@@ -14,28 +14,8 @@ from schemas.model import ModelEngine
 
 logger = logging.getLogger(__name__)
 
-# ============= GLOBAL MODEL CACHE =============
-# Models are loaded once per worker process and reused across jobs
-_model_cache: Dict[str, Any] = {}
-
-
-def get_cached_faster_whisper(model_id: str, device: str, compute_type: str):
-    """Get or create cached faster-whisper model."""
-    cache_key = f"faster_whisper:{model_id}:{device}:{compute_type}"
-    
-    if cache_key not in _model_cache:
-        from faster_whisper import WhisperModel
-        
-        logger.info(f"Loading faster-whisper model: {model_id} (device={device}, compute={compute_type})")
-        _model_cache[cache_key] = WhisperModel(
-            model_id,
-            device=device,
-            compute_type=compute_type,
-            num_workers=4,  # Parallel decoding workers
-        )
-        logger.info(f"Model {model_id} loaded and cached")
-    
-    return _model_cache[cache_key]
+# Use model manager with idle timeout
+from services.model_manager import get_whisper_model as get_cached_faster_whisper
 
 
 def get_cached_whisperx(model_id: str, device: str):

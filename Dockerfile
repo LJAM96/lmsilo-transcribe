@@ -86,6 +86,14 @@ autostart=true
 autorestart=true
 stdout_logfile=/var/log/supervisor/uvicorn.log
 stderr_logfile=/var/log/supervisor/uvicorn_error.log
+
+[program:celery]
+command=/opt/venv/bin/celery -A workers.celery_app worker -Q stt,diarization,tts,sync -c 1 --loglevel=info
+directory=/app
+autostart=true
+autorestart=true
+stdout_logfile=/var/log/supervisor/celery.log
+stderr_logfile=/var/log/supervisor/celery_error.log
 EOF
 
 # Create directories for data

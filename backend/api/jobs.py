@@ -2,7 +2,7 @@
 
 from datetime import datetime
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form, Request
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -28,9 +28,19 @@ except ImportError:
 
 router = APIRouter()
 
+# Initialize audit logger
+try:
+    import sys
+    sys.path.insert(0, "/app")
+    from shared.services.audit import AuditLogger
+    audit_logger = AuditLogger("transcribe")
+except ImportError:
+    audit_logger = None
+
 
 @router.post("", response_model=JobResponse, status_code=201)
 async def create_job(
+    request: Request,
     file: UploadFile = File(...),
     language: str = Form(default="auto"),
     translate_to: Optional[str] = Form(default=None),
@@ -53,6 +63,7 @@ async def create_job(
     import aiofiles
     import os
     import uuid
+    import hashlib
     
     # Validate file type
     allowed_types = {
@@ -90,9 +101,10 @@ async def create_job(
     ext = os.path.splitext(file.filename or "file")[1] or ".mp3"
     upload_path = settings.upload_dir / f"{file_id}{ext}"
     
-    # Save uploaded file
+    # Save uploaded file and compute hash
+    content = await file.read()
+    file_hash = hashlib.sha256(content).hexdigest()
     async with aiofiles.open(upload_path, "wb") as f:
-        content = await file.read()
         await f.write(content)
     
     # Parse output formats
@@ -128,6 +140,27 @@ async def create_job(
     session.add(job)
     await session.commit()
     await session.refresh(job)
+    
+    # Log audit event
+    if audit_logger:
+        try:
+            await audit_logger.log(
+                session=session,
+                action="job_created",
+                request=request,
+                job_id=job.id,
+                file_hash=file_hash,
+                file_name=file.filename,
+                file_size_bytes=len(content),
+                status="queued",
+                metadata={
+                    "language": language,
+                    "enable_diarization": enable_diarization,
+                    "enable_tts": enable_tts,
+                },
+            )
+        except Exception:
+            pass  # Don't fail job creation if audit fails
     
     # Queue the job for processing
     if CELERY_AVAILABLE and process_job:
